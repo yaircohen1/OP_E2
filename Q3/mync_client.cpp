@@ -46,16 +46,3 @@ int startTCPClient(const string &hostname, int port) {
     cout << "Connected " << hostname << " on Port: " << port << endl;
     return socketClient;
 }
-void clientInteraction(int clientSocket) {
-    string userInput;
-    while (true) {
-        cout << "Enter your move: ";
-        getline(cin, userInput);
-        if (send(clientSocket, userInput.c_str(), userInput.length(), 0) < 0) {
-            perror("send failed");
-            break;
-        }
-        cout << "Sent move: " << userInput << endl;
-    }
-    close(clientSocket);
-}

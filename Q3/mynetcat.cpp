@@ -90,7 +90,6 @@ void executeCommand(const string& command, const string& inputSource, const stri
             if(inputSource == outputDestination){
                 cout<<"we got to inputSource == outputDestination " <<endl;
                 redirectOutput(inputFD);
-                inputFD = outputFd;
             }
         }
     }
@@ -105,8 +104,6 @@ void executeCommand(const string& command, const string& inputSource, const stri
                 cerr << "Failed to connect to TCP server" << endl;
                 exit(EXIT_FAILURE);
             }
-            clientInteraction(outputFd);
-
         }
     }
 

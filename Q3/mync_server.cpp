@@ -21,20 +21,14 @@ int startTCPServer(int port) {
 
     int opt = 1; // Indicates that we want to enable the SO_REUSEADDR and SO_REUSEPORT options.
     // Setting SO_REUSEADDR allows the program to reuse the socket with the same address and port number
-    if (setsockopt(listeningSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    // Several processes can bind to the same port and listen to incoming connections, 
+    // which enables load balancing between the processes automatically.
+    if (setsockopt(listeningSocket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
         perror("setsockopt(SO_REUSEADDR) failed");
         close(listeningSocket);
         exit(EXIT_FAILURE);
     }
     
-    // Several processes can bind to the same port and listen to incoming connections, 
-    // which enables load balancing between the processes automatically.
-    if (setsockopt(listeningSocket, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
-        perror("setsockopt(SO_REUSEPORT) failed");
-        close(listeningSocket);
-        return -1;
-    }
-
     cout << "Starting TCP server on port " << port << endl;
     struct sockaddr_in address;  // Struct sockaddr_in is defined in the <netinet/in.h> header file.
     memset(&address, 0, sizeof(address));
