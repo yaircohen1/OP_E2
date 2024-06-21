@@ -1,0 +1,387 @@
+        -:    0:Source:mynetcat.cpp
+        -:    1:#include "TCPserver.hpp"
+        -:    2:#include "TCPclient.hpp"
+        -:    3:#include "UDPserver.hpp"
+        -:    4:#include "UDPclient.hpp"
+        -:    5:#include "UDSclient.hpp"
+        -:    6:#include "UDSserver.hpp"
+        -:    7:
+        -:    8:#include <iostream>
+        -:    9:#include <vector>
+        -:   10:#include <cstring> // for strdup()
+        -:   11:#include <unistd.h> // for fork(), execv(), dup2(), getopt
+        -:   12:#include <getopt.h>
+        -:   13:#include <sys/types.h>
+        -:   14:#include <sys/socket.h>
+        -:   15:#include <netinet/in.h>
+        -:   16:#include <arpa/inet.h>
+        -:   17:#include <netdb.h>
+        -:   18:#include <sstream>
+        -:   19:#include <csignal>
+        -:   20:#include <sys/wait.h> // for waitpid()
+        -:   21:#include <ctime>
+        -:   22:#include <signal.h>
+        -:   23:
+        -:   24:#define BUFFER_SIZE 1024
+        -:   25:
+        -:   26:
+        -:   27:using namespace std;
+        -:   28:
+        -:   29:
+        -:   30:// Redirect input/output if specified
+        -:   31:int inputFd = -1, outputFd = -1;
+        -:   32:int serverSocket = -1, clientSocket = -1; // Server and client sockets
+        -:   33:pid_t pid = -1;
+        -:   34:bool eFlag = false;
+        -:   35:vector<char*> execArgs;
+        -:   36:
+      167:   37:void closeProgram (int signal,vector<char*>& execArgs){
+      167:   38:    if (inputFd != -1 && inputFd != STDIN_FILENO) {
+       87:   39:        close(inputFd);
+        -:   40:    }
+      167:   41:    if (outputFd != -1 && outputFd != STDOUT_FILENO && outputFd != inputFd) {
+       68:   42:        close(outputFd);
+        -:   43:    }
+      167:   44:    if (serverSocket != -1) {
+       10:   45:        close(serverSocket);
+        -:   46:    }
+      167:   47:    if (clientSocket != -1) {
+        9:   48:        close(clientSocket);
+        -:   49:    }
+      167:   50:    if (pid != -1) {
+      141:   51:        kill(pid, SIGTERM);
+      141:   52:        cout << "Killed child process." << endl;
+      141:   53:        waitpid(pid, nullptr, 0); // Wait for child process to terminate
+        -:   54:    }
+      667:   55:    for (char* arg : execArgs) {
+      500:   56:                free(arg);
+        -:   57:            }
+      167:   58:            fflush(stdout);
+      167:   59:    exit(signal);
+        -:   60:}
+        -:   61:
+       20:   62:void closeProgramT (int signal) {
+       20:   63:    closeProgram (signal,execArgs);
+    #####:   64:}
+        -:   65:
+        -:   66:
+        -:   67:// Print to the stdout from the inputFd and send to outpudFd from the stdin
+        -:   68:int chat(int inputFd, int outputFd);
+        -:   69:
+        -:   70:
+        -:   71:// Execute the command with input and output redirection if specified
+        -:   72:void executeCommand(const string& command, const string& inputSource, const string& outputDestination);
+        -:   73:
+        -:   74:// Main application entry
+      167:   75:int main(int argc, char* argv[]) { 
+      167:   76:    string command, inputSource, outputDestination ,timeout;
+        -:   77:
+        -:   78:    // Parsing command-line arguments
+        -:   79:    int opt;
+      544:   80:    while ((opt = getopt(argc, argv, "e:i:o:b:t:")) != -1) {
+      377:   81:        switch (opt) {
+      166:   82:            case 'e':
+      166:   83:                command = optarg;
+      166:   84:                eFlag = true;
+      166:   85:                break;
+       83:   86:            case 'i':
+       83:   87:                inputSource = optarg;
+       83:   88:                break;
+       85:   89:            case 'o':
+       85:   90:                outputDestination = optarg;
+       85:   91:                break;
+       22:   92:            case 'b':
+       22:   93:                inputSource = outputDestination = optarg;
+       22:   94:                break;
+       21:   95:            case 't':
+       21:   96:                timeout = optarg;
+       21:   97:                break;
+    #####:   98:            default:
+    #####:   99:                cerr << "Usage: mync -e <\"command\"> [-i <input source>] [-o <output destination>] [-b <bi-directional source>] [-t <timeout>]" << endl;
+    #####:  100:                exit(EXIT_FAILURE);
+        -:  101:        }
+        -:  102:    }
+      167:  103:    if (!timeout.empty()) {
+       21:  104:        signal(SIGALRM, closeProgramT);
+       21:  105:        int time = stoi(timeout);
+       21:  106:        alarm(time);
+        -:  107:    }
+        -:  108:
+        -:  109:    // Execute the command
+      167:  110:    executeCommand(command, inputSource, outputDestination);
+    #####:  111:    return 0;
+    #####:  112:}
+        -:  113:
+        -:  114:// Execute the command with input and output redirection if specified
+      167:  115:void executeCommand(const string& command, const string& inputSource, const string& outputDestination) {
+        -:  116:    // Setup execution environment
+      167:  117:    stringstream commandStream(command);
+      167:  118:    string executable;
+      167:  119:    vector<string> arguments;
+      167:  120:    commandStream >> executable;
+      167:  121:    string arg;
+        -:  122:
+      333:  123:    while (commandStream >> arg) {
+      166:  124:        arguments.push_back(arg);
+        -:  125:    }
+        -:  126:
+      167:  127:    execArgs.push_back(strdup(executable.c_str())); // Executable name
+      333:  128:    for (const string& arg : arguments) {
+      166:  129:        execArgs.push_back(strdup(arg.c_str())); // Command arguments
+        -:  130:    }
+      167:  131:    execArgs.push_back(nullptr); // Null terminate for execv
+        -:  132:
+        -:  133:    
+      167:  134:    if (!inputSource.empty()) {
+      105:  135:        if (inputSource.substr(0, 4) == "TCPS") {
+       72:  136:            int port = stoi(inputSource.substr(4));
+       72:  137:            inputFd = startTCPServer(port); // Got the clientSocket from TCP server
+       72:  138:            if (inputFd == -1) {
+    #####:  139:                perror("Failed to start TCP server");
+    #####:  140:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  141:            }
+       72:  142:            if(dup2 (inputFd, STDIN_FILENO) < 0) {
+    #####:  143:                perror("Failed to redirect standard input");
+    #####:  144:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  145:            }
+       72:  146:            if(inputSource == outputDestination){
+       22:  147:                if(dup2(inputFd, STDOUT_FILENO) < 0) {
+    #####:  148:                    perror("Failed to redirect standard output");
+    #####:  149:                    closeProgram(EXIT_FAILURE, execArgs);
+        -:  150:                }
+       22:  151:                if(dup2(inputFd, STDERR_FILENO)< 0){
+    #####:  152:                    perror("Failed to redirect standard error output");
+    #####:  153:                    closeProgram(EXIT_FAILURE, execArgs);
+        -:  154:                }
+        -:  155:            }
+       33:  156:        } else if (inputSource.substr(0, 4) == "UDPS") {
+       23:  157:            int port = stoi(inputSource.substr(4));
+       23:  158:            inputFd = startUDPServer(port); // Return the serverSocket from UDP server
+        6:  159:            if (inputFd == -1) {
+        1:  160:                perror("Failed to start UDP server");
+        1:  161:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  162:            }
+        5:  163:            if(dup2 (inputFd, STDIN_FILENO) < 0) {
+    #####:  164:                perror("Failed to redirect standard input");
+    #####:  165:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  166:            }
+        5:  167:            close(inputFd); // close the serverSocket from UDP server
+       10:  168:        } else if (inputSource.substr(0, 5) == "UDSSS") {  // Unix-Domain-Socket-Stream-Server: redirection input from the client (-i Flag)
+       10:  169:            int findPath = inputSource.find("/");
+       10:  170:            const string socketPath = inputSource.substr(findPath);
+       10:  171:            serverSocket = startUDSServerStream(socketPath);
+       10:  172:            if(serverSocket == -1) {
+    #####:  173:                perror("Failed to start UDS-Server-Stream");
+    #####:  174:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  175:            }
+        -:  176:        
+        -:  177:            struct sockaddr_un client_address; // Define client 
+        -:  178:            socklen_t client_address_len; // Define the client_address_len
+        -:  179:            
+        -:  180:            // Accept a connection from the client
+       10:  181:            inputFd = accept(serverSocket, (struct sockaddr *)&client_address, &client_address_len);
+       10:  182:            if (inputFd == -1) {
+    #####:  183:                perror("Accept failed");
+    #####:  184:                close (serverSocket);
+    #####:  185:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  186:            }
+       10:  187:            cout<<"Connection accepted from client"<<endl;
+       10:  188:            if (dup2(inputFd, STDIN_FILENO) < 0) {
+    #####:  189:                perror("Failed to redirect standard input");
+    #####:  190:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  191:            }
+        -:  192:
+      10*:  193:        } else if (inputSource.substr(0, 5) == "UDSSD") { //  // Unix-Domain-Socket-Datagram-Server: redirection input from the client (-i Flag)
+    #####:  194:            int findPath = inputSource.find("/");
+    #####:  195:            const string socketPath = inputSource.substr(findPath);
+    #####:  196:            inputFd = startUDSServerDatagram(socketPath);
+    #####:  197:            if(inputFd == -1) {
+    #####:  198:                cerr << "Failed to start UDS-Server-Datagram" << endl;
+    #####:  199:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  200:            }
+    #####:  201:            if (dup2(inputFd, STDIN_FILENO) < 0) {
+    #####:  202:                perror("Failed to redirect standard input");
+    #####:  203:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  204:            }
+    #####:  205:        }
+        -:  206:    }
+        -:  207:    
+      149:  208:    if (!outputDestination.empty()){
+      106:  209:        if (outputDestination.substr(0, 4) == "TCPC") {
+       50:  210:            size_t commaPos = outputDestination.find(',');
+       50:  211:            string hostname = outputDestination.substr(4, commaPos - 4);
+       50:  212:            int port = stoi(outputDestination.substr(commaPos + 1));
+       50:  213:            outputFd = startTCPClient(hostname, port); // Return socketClient from TCP client
+       50:  214:            if (outputFd == -1) {
+    #####:  215:                perror("Failed to connect to TCP client");
+    #####:  216:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  217:            }
+       50:  218:            if(dup2(outputFd, STDOUT_FILENO) < 0) {
+    #####:  219:                perror("Failed to redirect standard output");
+    #####:  220:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  221:            }
+       50:  222:            if(dup2(outputFd, STDERR_FILENO) < 0) {
+    #####:  223:                perror("Failed to redirect standard error output");
+    #####:  224:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  225:            }
+      106:  226:        } else if (outputDestination.substr(0, 4) == "UDPC") {
+       17:  227:            size_t commaPos = outputDestination.find(',');
+       17:  228:            string hostname = outputDestination.substr(4, commaPos - 4);
+       17:  229:            int port = stoi(outputDestination.substr(commaPos + 1));
+       17:  230:            outputFd = startUDPClient(hostname, port); // Return client socket from UDP client
+       17:  231:            if (outputFd == -1) {
+    #####:  232:               perror("Failed to connect to UDP client");
+    #####:  233:               closeProgram(EXIT_FAILURE, execArgs);
+        -:  234:            }
+       17:  235:            if (dup2(outputFd, STDOUT_FILENO) < 0) {
+    #####:  236:                perror("Failed to redirect standard output");
+    #####:  237:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  238:            }
+       17:  239:            if(dup2(outputFd, STDERR_FILENO) < 0) {
+    #####:  240:                perror("Failed to redirect standard error output");
+    #####:  241:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  242:            }      
+       56:  243:        } else if (outputDestination.substr(0, 5) == "UDSCS") { /* Unix-Domain-Socket-Stream-Client: redirection output to the client (-o Flag) */
+        9:  244:            size_t find_path = outputDestination.find("/");
+        9:  245:            const string socketPath = outputDestination.substr(find_path);
+        9:  246:            clientSocket = startUDSClientStream(socketPath);
+        9:  247:            if (clientSocket == -1) {
+    #####:  248:                cerr << "Failed to connect to UDS-Client-Stream server" << endl;
+    #####:  249:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  250:            }
+        9:  251:            if (dup2(clientSocket, STDOUT_FILENO) < 0) {
+    #####:  252:                perror("Failed to redirect standard output");
+    #####:  253:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  254:            }
+        9:  255:            if(dup2(clientSocket, STDERR_FILENO) < 0) {
+    #####:  256:                perror("Failed to redirect standard error output");
+    #####:  257:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  258:            }
+        -:  259:
+       39:  260:        } else if (outputDestination.substr(0, 5) == "UDSCD") {  /* Unix-Domain-Socket-Datagram-Client: redirection output to the client (-o Flag) */
+        8:  261:            size_t find_path = outputDestination.find("/");
+        8:  262:            const string socketPath = outputDestination.substr(find_path);
+        8:  263:            outputFd = startUDSClientDatagram(socketPath);
+        8:  264:            if (outputFd == -1) {
+        7:  265:            cerr << "Failed to connect to UDS-Client-Datagram server" << endl;
+        7:  266:            closeProgram(EXIT_FAILURE, execArgs);
+        -:  267:            }
+        1:  268:            if (dup2(outputFd, STDOUT_FILENO) < 0) {
+    #####:  269:                perror("Failed to redirect standard output");
+    #####:  270:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  271:            }
+        1:  272:            if(dup2(outputFd, STDERR_FILENO) < 0) {
+    #####:  273:                perror("Failed to redirect standard error output");
+    #####:  274:                closeProgram(EXIT_FAILURE, execArgs);
+        -:  275:            }
+        1:  276:        }
+        -:  277:    }
+        -:  278:
+      142:  279:    if (eFlag) {
+        -:  280:        // Fork and execute
+      141:  281:        pid = fork();
+      291:  282:        if (pid == -1) {
+    #####:  283:            perror("fork");
+    #####:  284:            closeProgram(EXIT_FAILURE, execArgs);
+        -:  285:        }
+        -:  286:
+      291:  287:        if (pid == 0) { // Child process
+      150:  288:            execv(execArgs[0], execArgs.data());
+      150:  289:            perror("execv failed");
+    #####:  290:            closeProgram(EXIT_FAILURE, execArgs);
+        -:  291:
+        -:  292:        } else { // Parent process
+        -:  293:            int status;
+      141:  294:            waitpid(pid, &status, 0);
+      138:  295:            if (WIFEXITED(status)) {
+      138:  296:                    cout << "Child process exited with status " << WEXITSTATUS(status) << endl;
+        -:  297:                } else {
+    #####:  298:                    cout << "Child process did not exit successfully" << endl;
+        -:  299:            }
+      138:  300:            closeProgram(EXIT_FAILURE, execArgs);
+        -:  301:        }   
+        -:  302:    }  else { // No flag -e
+        1:  303:        cout<< "print 'Quit' if want to leave"<<endl;
+        1:  304:        int status = chat(inputFd, outputFd);
+        1:  305:        if (status!= 0 && status!=1) {
+        1:  306:            cout << "Process did not exit successfully" << endl;
+        -:  307:        }
+        1:  308:        closeProgram(EXIT_FAILURE, execArgs);
+    #####:  309:        if (status == 1) { // User want to quit
+    #####:  310:            closeProgram(EXIT_FAILURE, execArgs);
+        -:  311:        } 
+        -:  312:    }
+    #####:  313:}
+        -:  314:
+        1:  315:int chat(int inputFd, int outputFd) {
+        -:  316:    fd_set readFds;
+        1:  317:    int maxFd = inputFd;
+        -:  318:    // if the outputFd is greater than the inputFd, set the maxFd to the outputFd
+        1:  319:    if (outputFd > maxFd) {
+    #####:  320:        maxFd = outputFd;
+        -:  321:    }
+        1:  322:    if (STDIN_FILENO > maxFd) {
+    #####:  323:        maxFd = STDIN_FILENO;
+        -:  324:    }
+        -:  325:    
+        -:  326:    while (1) 
+        -:  327:    {
+       17:  328:        FD_ZERO(&readFds); // clear the readFds set
+        1:  329:        FD_SET(inputFd, &readFds);  // add the inputFd to the readFds set
+        1:  330:        FD_SET(STDIN_FILENO, &readFds); // add the stdin to the readFds set
+        -:  331:
+        -:  332:        // wait for any of the file descriptors to have data to read
+        1:  333:        if (select(maxFd + 1, &readFds, NULL, NULL, NULL) == -1) {
+        1:  334:            perror("select Failed");
+        1:  335:            return -1;
+        -:  336:        }
+        -:  337:
+        -:  338:        // check if the inputFd has data to read (from the input source)
+    #####:  339:        if (inputFd != STDIN_FILENO && FD_ISSET(inputFd, &readFds)) {
+        -:  340:            char buffer[1024];
+    #####:  341:            int bytes_read = read(inputFd, buffer, sizeof(buffer)-1);  // read from the inputFd
+    #####:  342:            if (bytes_read == -1) {
+    #####:  343:                perror("read Failed");
+    #####:  344:                return -1;
+        -:  345:            }
+    #####:  346:            if (bytes_read == 0) {
+    #####:  347:                break;
+        -:  348:            }
+    #####:  349:            buffer[bytes_read] = '\0';  // Null-terminate the buffer
+    #####:  350:            if (strcmp(buffer, "Quit\n") == 0 || strcmp(buffer, "Quit") == 0) {
+    #####:  351:                return 1;
+        -:  352:            }
+        -:  353:            // write to the stdout
+    #####:  354:            if (write(STDOUT_FILENO, buffer, bytes_read) == -1) {
+    #####:  355:                perror("write Failed 1");
+    #####:  356:                return -1;
+        -:  357:            }
+        -:  358:        }
+        -:  359:
+        -:  360:        // check if the stdin has data to read (keyboard input)
+    #####:  361:        if (FD_ISSET(STDIN_FILENO, &readFds) && outputFd != STDOUT_FILENO) 
+        -:  362:        {
+        -:  363:            char buffer[1024];
+    #####:  364:            int bytes_read = read(STDIN_FILENO, buffer, sizeof(buffer)-1);  // read from the stdin
+    #####:  365:            if (bytes_read == -1) 
+        -:  366:            {
+    #####:  367:                perror("read Failed");
+    #####:  368:                return -1;
+        -:  369:            }
+    #####:  370:            if (bytes_read == 0) 
+        -:  371:            {
+    #####:  372:                break;
+        -:  373:            }
+    #####:  374:            buffer[bytes_read] = '\0';  // Null-terminate the buffer
+    #####:  375:            if (strcmp(buffer, "Quit\n") == 0 || strcmp(buffer, "Quit") == 0) {
+    #####:  376:                return 1;
+        -:  377:            }
+    #####:  378:            if (write(STDOUT_FILENO, buffer, bytes_read) == -1) 
+        -:  379:            {
+    #####:  380:                perror("write Failed 2");
+    #####:  381:                return -1;
+        -:  382:            }
+        -:  383:        }
+    #####:  384:    }
+    #####:  385:    return 0;
+        -:  386:}

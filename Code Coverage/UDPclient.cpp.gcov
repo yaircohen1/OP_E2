@@ -1,0 +1,57 @@
+        -:    0:Source:UDPclient.cpp
+        -:    1:#include "UDPclient.hpp"
+        -:    2:
+        -:    3:
+        -:    4:using namespace std;
+        -:    5:
+        -:    6:// Function to start a UDP client
+       17:    7:int startUDPClient(const string &hostname, int port) {
+        -:    8:    // addressCriteria - a structure that provides criteria for selecting IP addresses.
+        -:    9:    struct addrinfo addressCriteria, *IPlist, *Iterator;
+        -:   10:    int clientSocket; 
+        -:   11:
+        -:   12:    // Set up the addressCriteria structure
+       17:   13:    memset(&addressCriteria, 0, sizeof(addressCriteria));
+       17:   14:    addressCriteria.ai_socktype = SOCK_DGRAM; // Set the socket type to UDP
+        -:   15:
+        -:   16:    // getaddrinfo is suitable foR IPv4 & IPv6 to Get IP address list from the server
+        -:   17:    int status;
+       17:   18:    string port_str = to_string(port);
+       17:   19:    if ((status = getaddrinfo(hostname.c_str(), port_str.c_str(), &addressCriteria, &IPlist)) != 0) {
+    #####:   20:        cerr << "getaddrinfo: " << gai_strerror(status) << endl;
+    #####:   21:        return -1;
+        -:   22:    }
+        -:   23:
+        -:   24:    // connect to the first IP from the list to match
+      17*:   25:    for (Iterator = IPlist; Iterator != NULL; Iterator = Iterator->ai_next) {
+      17*:   26:        if ((clientSocket = socket(Iterator->ai_family, Iterator->ai_socktype, Iterator->ai_protocol)) == -1) {
+    #####:   27:            perror("Error creating socket");
+    #####:   28:            continue;
+        -:   29:        }
+        -:   30:        
+        -:   31:        // Connect to the server
+        -:   32:
+        -:   33:        // When using connect with a UDP socket, it's not creating a connection as with TCP. 
+        -:   34:        // Instead, connect in UDP defines the destination address of the socket 
+        -:   35:        // so that it does not need to be specified in every call to sendto.
+        -:   36:        
+      17*:   37:        if (connect(clientSocket, Iterator->ai_addr, Iterator->ai_addrlen) == -1) {
+    #####:   38:            close(clientSocket);
+    #####:   39:            perror("Error connecting to server");
+    #####:   40:            continue;
+        -:   41:        }
+        -:   42:
+       17:   43:        break; // If we get here, we must have connected successfully
+        -:   44:    }
+        -:   45:
+        -:   46:    // Check if we failed to connect to any address
+       17:   47:    if (Iterator == NULL) {
+    #####:   48:        cerr << "Failed to connect" << endl;
+    #####:   49:        return -1;
+        -:   50:    }
+        -:   51:
+        -:   52:    // Free the linked list
+       17:   53:    freeaddrinfo(IPlist);
+        -:   54:
+       17:   55:    return clientSocket;
+       17:   56:}

@@ -1,0 +1,53 @@
+        -:    0:Source:tttfunctions.cpp
+        -:    1:#include "tttfunctions.hpp"
+        -:    2:
+        -:    3:using namespace std;
+        -:    4:
+        -:    5:// This function check if the input string 1) has exactly 9 characters 2) Contains only digits from '1' to '9'
+        -:    6:// Each digit appears only once.
+      474:    7:bool validateInput(const string& inputStrategy) {
+      474:    8:    if (inputStrategy.size()!=9) return false;
+      390:    9:    vector<bool> seen(9, false);
+     3900:   10:    for (char c : inputStrategy) {
+     3510:   11:        if(c < '1' || c > '9') {
+    #####:   12:            return false;
+        -:   13:        }
+     3510:   14:        int index = c - '1';
+    3510*:   15:        if (seen[index]) return false;
+     3510:   16:        seen[index] = true;
+        -:   17:    }
+      390:   18:    return true;
+      390:   19:}
+        -:   20:
+        -:   21:// This function prints the board. 
+     1975:   22:void printBoard(const vector<char>& board) {
+    19750:   23:    for (int i = 0; i < 9; i++) {
+    17775:   24:        cout << board[i];
+    17775:   25:        if (i % 3 == 2) cout << endl; // if its the end of row, new line
+    11850:   26:        else cout << ' '; // else, space
+        -:   27:    }
+     1975:   28:    cout << endl;
+     1975:   29:}
+        -:   30:
+        -:   31:// This function check if player is the winner by pass all possible winning combinations
+     1975:   32:bool checkWinner(const vector<char>& board, char player) {
+        -:   33:    const vector<vector<int>> win_conditions = {
+        -:   34:        {0, 1, 2}, {3, 4, 5}, {6, 7, 8},  // Rows
+        -:   35:        {0, 3, 6}, {1, 4, 7}, {2, 5, 8},  // Columns
+        -:   36:        {0, 4, 8}, {2, 4, 6}              // Diagonals
+    21725:   37:    };
+        -:   38:
+    16838:   39:    for (const auto& condition : win_conditions) {
+    15107:   40:        if (board[condition[0]] == player && board[condition[1]] == player && board[condition[2]] == player) {
+      244:   41:            return true;
+        -:   42:        }
+        -:   43:    }
+     1731:   44:    return false;
+     1975:   45:}
+        -:   46:
+     1076:   47:int getMove(const vector<char>& board, const vector<int>& numStrategy) {
+     2820:   48:    for (int position : numStrategy) {
+     2820:   49:        if (board[position] == '_') return position;
+        -:   50:    }
+    #####:   51:    return numStrategy.back();
+        -:   52:}

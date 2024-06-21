@@ -1,0 +1,53 @@
+        -:    0:Source:UDPserver.cpp
+        -:    1:#include "UDPserver.hpp"
+        -:    2:#define BUFFER_SIZE 1024
+        -:    3:
+        -:    4:using namespace std;
+        -:    5:
+        -:    6:
+        -:    7:// Function to start a UDP server
+       23:    8:int startUDPServer(int port) {
+       23:    9:    int serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+       23:   10:    if (serverSocket < 0)
+        -:   11:    {
+    #####:   12:        perror("Error creating socket");
+    #####:   13:        return -1;
+        -:   14:    }
+        -:   15:
+       23:   16:    cout << "Server UDP Socket Created On Port: " << port << endl;
+        -:   17:    
+        -:   18:    // Define Server's values
+        -:   19:    struct sockaddr_in server_addr; // Struct sockaddr_in is defined in the <netinet/in.h> header file.
+       23:   20:    memset(&server_addr, 0, sizeof(server_addr));
+        -:   21:
+       23:   22:    server_addr.sin_family = AF_INET;
+       23:   23:    server_addr.sin_addr.s_addr = INADDR_ANY; // The server will listen on all available network interfaces.
+       23:   24:    server_addr.sin_port = htons(port); // htons() function ensures that the port number is properly formatted for network communication, regardless of the byte order of the host machine.
+        -:   25:   
+        -:   26:    // Bind the socket to the specified address and port
+       23:   27:    if (bind(serverSocket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        1:   28:        perror("Bined Failed");
+        1:   29:        close(serverSocket);
+        1:   30:        return -1;
+        -:   31:    }
+        -:   32:
+        -:   33:    // Define Client
+        -:   34:    struct sockaddr_in client_address;
+       22:   35:    memset(&client_address, 0, sizeof(client_address));
+       22:   36:    socklen_t client_address_len = sizeof(client_address);
+        -:   37:    
+        -:   38:    char buffer[BUFFER_SIZE];
+       22:   39:    cout<<"Ready to receive.."<<endl;
+       22:   40:    cout<<"Enter OK to start"<<endl;
+        -:   41:
+       22:   42:    ssize_t bytesReceived = recvfrom(serverSocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_address, &client_address_len);
+        5:   43:    if (bytesReceived < 0) {
+    #####:   44:        perror("Failed to receive");
+    #####:   45:        close(serverSocket);
+    #####:   46:        return -1;
+        -:   47:    }
+        5:   48:    buffer[bytesReceived] = '\0'; //Null-terminate the received data 
+        -:   49:    
+        5:   50:    return serverSocket;
+        -:   51:
+        -:   52:}

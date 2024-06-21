@@ -1,0 +1,65 @@
+        -:    0:Source:TCPserver.cpp
+        -:    1:#include "TCPserver.hpp"
+        -:    2:
+        -:    3:using namespace std;
+        -:    4:
+       72:    5:int startTCPServer(int port) {
+       72:    6:    int listeningSocket = socket(AF_INET, SOCK_STREAM, 0);  // Create a TCP socket for IPv4
+       72:    7:    if (listeningSocket < 0){
+    #####:    8:        perror("Socket creation failed");
+    #####:    9:        return -1;
+        -:   10:    }
+        -:   11:
+       72:   12:    int opt = 1; // Indicates that we want to enable the SO_REUSEADDR and SO_REUSEPORT options.
+        -:   13:    // Setting SO_REUSEADDR allows the program to reuse the socket with the same address and port number
+       72:   14:    if (setsockopt(listeningSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    #####:   15:        perror("setsockopt(SO_REUSEADDR) failed");
+    #####:   16:        close(listeningSocket);
+    #####:   17:        exit(EXIT_FAILURE);
+        -:   18:    }
+        -:   19:    
+       72:   20:    cout << "Starting TCP server on port " << port << endl;
+        -:   21:    struct sockaddr_in address;  // Struct sockaddr_in is defined in the <netinet/in.h> header file.
+       72:   22:    memset(&address, 0, sizeof(address));
+        -:   23:
+       72:   24:    address.sin_family = AF_INET;
+       72:   25:    address.sin_addr.s_addr = INADDR_ANY; // The server will listen on all available network interfaces.
+       72:   26:    address.sin_port = htons(port); // htons() function ensures that the port number is properly formatted for network communication, regardless of the byte order of the host machine.
+        -:   27:
+        -:   28:    // Bind the socket to the specified address and port
+       72:   29:    if (bind(listeningSocket, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    #####:   30:        perror("bind() failed");
+    #####:   31:        close(listeningSocket);
+    #####:   32:        return -1;
+        -:   33:    }
+        -:   34:
+        -:   35:    // Listen for incoming connections
+       72:   36:    if (listen(listeningSocket, 1) < 0) {
+    #####:   37:        perror("listen() failed");
+    #####:   38:        close(listeningSocket);
+    #####:   39:        return -1;
+        -:   40:    } 
+        -:   41:
+        -:   42:    // Get a connection from the client
+        -:   43:
+        -:   44:    // Define client 
+        -:   45:    struct sockaddr_in client_address;
+        -:   46:    socklen_t client_address_len;
+       72:   47:    memset(&client_address, 0, sizeof(client_address));
+        -:   48:
+        -:   49:    // Accept a connection
+       72:   50:    printf("Waiting for TCP connection...\n");
+       72:   51:    int clientSocket = accept(listeningSocket, (struct sockaddr *)&client_address, &client_address_len);
+       72:   52:    if (clientSocket < 0) {
+    #####:   53:        perror("Accept failed");
+    #####:   54:        close(listeningSocket);
+    #####:   55:        return -1;
+        -:   56:    }
+        -:   57:
+       72:   58:    cout << "Accepted connection on port " << port << endl;
+        -:   59:    // Close the listening socket as it's no longer needed
+       72:   60:    close(listeningSocket);
+        -:   61:
+       72:   62:    return clientSocket;
+        -:   63:}
+        -:   64:

@@ -1,0 +1,67 @@
+        -:    0:Source:UDSclient.cpp
+        -:    1:
+        -:    2:#include "UDSclient.hpp"
+        -:    3:
+        -:    4:using namespace std;
+        -:    5:
+        9:    6:int startUDSClientStream(const std::string &socketPath)
+        -:    7:{
+        -:    8:    
+        9:    9:    int socketClient= socket(AF_UNIX, SOCK_STREAM, 0); //Create the client socket stream
+        9:   10:    if(socketClient < 0) // check if the socket was created successfully
+        -:   11:    {
+    #####:   12:        perror("Socket creation Failed");
+    #####:   13:        return -1;
+        -:   14:    }
+        -:   15:
+        9:   16:    cout<<"Client Socket Created"<<endl;
+        -:   17:
+        9:   18:    const char* socket_path = socketPath.c_str();// Convert the string to a const char*
+        -:   19:    struct sockaddr_un socket_addr; // Define the server_addr struct
+        9:   20:    socket_addr.sun_family = AF_UNIX; // Set the server_addr struct values (Init its fields)
+        9:   21:    strncpy(socket_addr.sun_path, socket_path, sizeof(socket_addr.sun_path) - 1); // Copy the socket path to the server_addr struct
+        -:   22:
+        -:   23:    /* 
+        -:   24:        Connect the client socket to the server_addr struct 
+        -:   25:        connect system call is telling the OS that if the client process sends the data setined to socket file descriptor,
+        -:   26:        then the OS should deliver the data to the server_addr struct (the server process).
+        -:   27:    */
+        9:   28:    if(connect(socketClient, (const struct sockaddr *) &socket_addr, sizeof(socket_addr)) == -1)
+        -:   29:    {
+    #####:   30:        perror("Failed to connect");
+    #####:   31:        close(socketClient);
+    #####:   32:        return -1;
+        -:   33:    }
+        -:   34:
+        9:   35:    cout<<"Connected Successfully "<<endl;
+        9:   36:    return socketClient; // Get Input from the client
+        -:   37:}
+        -:   38:
+        -:   39:// Create a Unix Domain Socket client using datagram
+        8:   40:int startUDSClientDatagram(const string &socketPath)
+        -:   41:{
+        8:   42:    int recvfromSocket = socket(AF_UNIX, SOCK_DGRAM, 0); // Create the client socket datagram
+        -:   43:    
+        8:   44:    if(recvfromSocket < 0) // check if the socket was created successfully
+        -:   45:    {
+    #####:   46:        perror("Socket creation Failed");
+    #####:   47:        return -1;
+        -:   48:    }
+        -:   49:    
+        8:   50:    cout<<"Client Socket Created"<<endl;
+        -:   51:
+        8:   52:    const char* socket_path = socketPath.c_str(); // Convert the string to a const char*
+        -:   53:    struct sockaddr_un socket_addr; // Define the server_addr struct
+        8:   54:    socket_addr.sun_family = AF_UNIX; // Set the server_addr struct values 
+        8:   55:    strncpy(socket_addr.sun_path, socket_path, sizeof(socket_addr.sun_path) - 1); // Copy the socket path to the server_addr struct
+        -:   56:    
+        -:   57:    
+        8:   58:    if(connect(recvfromSocket, (const struct sockaddr *) &socket_addr, sizeof(socket_addr)) == -1)
+        -:   59:    {
+        7:   60:        perror("Failed to connect");
+        7:   61:        close(recvfromSocket);
+        7:   62:        return -1;
+        -:   63:    }
+        -:   64:    
+        1:   65:    return recvfromSocket;
+        -:   66:}

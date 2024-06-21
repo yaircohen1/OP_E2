@@ -1,0 +1,93 @@
+        -:    0:Source:ttt.cpp
+        -:    1:#include "tttfunctions.hpp"
+        -:    2:using namespace std;
+        -:    3:
+        -:    4:
+      502:    5:int main(int argc, char* argv[]) {
+      502:    6:    if (argc != 2) {
+       28:    7:        cout << "Error: invalid command, try: ./ttt <InputStrategy>" << endl;
+       28:    8:        return 1;
+        -:    9:    }
+        -:   10:
+      474:   11:    string strategy = argv[1];
+      474:   12:    if (!validateInput(strategy)) {
+       84:   13:        cout << "Error: Strategy must have exactly 9 unique digits from '1' to '9'."<< endl;
+       84:   14:        return 1;
+        -:   15:    }
+        -:   16:
+      390:   17:    vector <int> numStrategy;
+     3900:   18:    for (char i : strategy) {
+     3510:   19:        numStrategy.push_back(i -'1');
+        -:   20:    }
+        -:   21:
+      390:   22:    vector<char> board(9, '_'); // Init new empty board
+        -:   23:
+        -:   24:    while (true) {
+        -:   25:        // AI's move
+     1076:   26:        int move = getMove(board, numStrategy);
+     1076:   27:        board[move] = 'X';
+     1076:   28:        cout << "Computer next move: "<<move + 1 << endl; // Adding 1 to convert the 0-based index to a 1-based index for the user.
+     1076:   29:        printBoard(board);
+     1076:   30:        cout.flush(); //  Ensures the output is immediately displayed.
+        -:   31:
+        -:   32:        // Check if AI won
+     1076:   33:        if (checkWinner(board, 'X')) {
+       31:   34:            cout << "I win" << endl;
+       31:   35:            break;
+        -:   36:        }
+        -:   37:        // Check for draw
+     1045:   38:        if (count(board.begin(), board.end(), '_') == 0) {
+       28:   39:            cout << "DRAW" << endl;
+       28:   40:            break;
+        -:   41:        }
+        -:   42:
+        -:   43:        // Player's move
+        -:   44:        int playerMove;
+     1017:   45:        int invalidInputCounter = 0;
+     1017:   46:        bool validInput = false;
+        -:   47:        
+     2679:   48:        while (invalidInputCounter < 5 && !validInput) {
+     1662:   49:            cout << "Please enter your next move: ";
+     1662:   50:            cin >> playerMove;
+        -:   51:        
+     1662:   52:            if (cin.fail() || playerMove < 1 || playerMove > 9 ) {
+      706:   53:                cin.clear(); // Clear error flag
+      706:   54:                cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Ignore invalid input
+      706:   55:                cout << "Invalid input. Please enter a number between 1 and 9: ";
+      706:   56:                invalidInputCounter++;
+      956:   57:            } else if (board[playerMove-1] != '_') {
+       57:   58:                cout << "Error: Invalid move. Try again: ";
+       57:   59:                invalidInputCounter++;
+        -:   60:            } else {
+      899:   61:                validInput = true;
+        -:   62:            }
+        -:   63:        }
+        -:   64:
+     1017:   65:        if (!validInput) {
+      118:   66:            cout << "Too many invalid inputs. Game over." << endl;
+      118:   67:            break;
+        -:   68:        }
+        -:   69:
+      899:   70:        playerMove -= 1; // Match 0-based index for the board
+      899:   71:        board[playerMove] = 'O';
+      899:   72:        printBoard(board);
+      899:   73:        cout.flush(); // Ensure the board state is displayed immediately
+        -:   74:
+        -:   75:        // Check if player won
+      899:   76:        if (checkWinner(board, 'O')) {
+      213:   77:            cout << "I lost" << endl;
+      213:   78:            break;
+        -:   79:        }
+        -:   80:
+        -:   81:        // Check for draw again
+      686:   82:        if (count(board.begin(), board.end(), '_') == 0) {
+    #####:   83:            cout << "DRAW" << endl;
+    #####:   84:            break;
+        -:   85:        }
+      686:   86:    }
+        -:   87:        
+      390:   88:    return 0;
+      474:   89:}
+        -:   90:    
+        -:   91:
+        -:   92:
